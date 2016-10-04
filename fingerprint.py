@@ -15,16 +15,15 @@ scores = {('C', 'C'): 3,
           ('D', 'D'): 1}
 
 
-def expected_value(fingerprint_strat, probe_strat, turns=50, coords, repetitions=50, start_seed=0):
+def expected_value(fingerprint_strat, probe_strat, turns, coords, repetitions=50, start_seed=0):
     strategies = [axl.Cooperator, axl.Defector]
     probe_strategy = MixedTransformer(coords, strategies)(probe_strat)
     players = (fingerprint_strat(), probe_strategy())
-    match.play()
     scores = []
 
     for seed in range(start_seed, start_seed + repetitions):  # Repeat to deal with expectation
         axl.seed(seed)
-        match = axl.Match(players, length)  # Need to create a new match because of caching
+        match = axl.Match(players, turns)  # Need to create a new match because of caching
         match.play()
         scores.append(match.final_score_per_turn()[0])
 
@@ -37,7 +36,7 @@ def expected_value(fingerprint_strat, probe_strat, turns=50, coords, repetitions
     return coords, np.mean(scores)
 
 
-def fingerprint(fingerprint_strat, probe_strat, turns, granularity, cores, name=None):
+def fingerprint(fingerprint_strat, probe_strat, granularity, cores, turns=50, name=None):
     if name is None:
         name = fingerprint_strat.name + ".pdf"
 
@@ -55,5 +54,7 @@ def fingerprint(fingerprint_strat, probe_strat, turns, granularity, cores, name=
     clean_data = np.array(values).reshape(len(xs), len(ys))
 
     sns.heatmap(clean_data, xticklabels=False, yticklabels=False)
-    plt.show()
     plt.savefig(name)
+
+
+fingerprint(axl.TitForTat, axl.TitForTat, 0.1, 4, 50)
