@@ -50,11 +50,35 @@ def fingerprint(fingerprint_strat, probe_strat, granularity, cores, turns=50, na
     xs = set([i[0][0] for i in scores])
     ys = set([i[0][1] for i in scores])
     values = np.array([i[1] for i in scores])
-
     clean_data = np.array(values).reshape(len(xs), len(ys))
-
     sns.heatmap(clean_data, xticklabels=False, yticklabels=False)
     plt.savefig(name)
 
 
-fingerprint(axl.TitForTat, axl.TitForTat, 0.1, 4, 50)
+def AnalyticalWinStayLoseShift(coords):
+    x = coords[0]
+    y = coords[1]
+    value = ((3 * x * (x - 1)) + (y * (x - 1) ** 2) + 5 * y * (y - 1)) /
+            ((2 * y * (x - 1)) + (x * (x - 1)) + (y * (y - 1)))
+
+    return value
+
+
+def analytical_fingerprint(granularity, cores, name=None):
+    coordinates = list(product(np.arange(0, 1, granularity), np.arange(0, 1, granularity)))
+
+    p = Pool(cores)
+
+    scores = p.map(AnalyticalWinStayLoseShift, coordinates)
+    scores.sort()
+
+    xs = set([i[0][0] for i in scores])
+    ys = set([i[0][1] for i in scores])
+    values = np.array([i[1] for i in scores])
+    clean_data = np.array(values).reshape(len(xs), len(ys))
+    sns.heatmap(clean_data, xticklabels=False, yticklabels=False)
+    plt.savefig(name)
+
+
+fingerprint(axl.WinStayLoseShift, axl.TitForTat, 0.01, 4, 50)
+analytical_fingerprint(0.01, 4, "analyticalWinStayLoseShift.pdf")
