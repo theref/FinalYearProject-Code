@@ -58,10 +58,17 @@ def fingerprint(fingerprint_strat, probe_strat, granularity, cores, turns=50, na
 def AnalyticalWinStayLoseShift(coords):
     x = coords[0]
     y = coords[1]
-    value = ((3 * x * (x - 1)) + (y * (x - 1) ** 2) + 5 * y * (y - 1)) /
-            ((2 * y * (x - 1)) + (x * (x - 1)) + (y * (y - 1)))
+    value = ((3 * x * (x - 1)) + (y * (x - 1) ** 2) + (5 * y * (y - 1))) / ((2 * y * (x - 1)) + (x * (x - 1)) + (y * (y - 1)))
 
-    return value
+    return coords, value
+
+
+def AnalyticalWinStayLoseShiftNew(coords):
+    x = coords[0]
+    y = coords[1]
+    value = 3 + 5 * ((y ** 2 - y) / (x ** 2 - x)) + (y / x)
+
+    return coords, value
 
 
 def analytical_fingerprint(granularity, cores, name=None):
@@ -69,7 +76,7 @@ def analytical_fingerprint(granularity, cores, name=None):
 
     p = Pool(cores)
 
-    scores = p.map(AnalyticalWinStayLoseShift, coordinates)
+    scores = p.map(AnalyticalWinStayLoseShiftNew, coordinates)
     scores.sort()
 
     xs = set([i[0][0] for i in scores])
@@ -80,5 +87,5 @@ def analytical_fingerprint(granularity, cores, name=None):
     plt.savefig(name)
 
 
-fingerprint(axl.WinStayLoseShift, axl.TitForTat, 0.01, 4, 50)
-analytical_fingerprint(0.01, 4, "analyticalWinStayLoseShift.pdf")
+# fingerprint(axl.WinStayLoseShift, axl.TitForTat, 0.01, 4, 50)
+analytical_fingerprint(0.01, 4, "analyticalWinStayLoseShiftNew.pdf")
