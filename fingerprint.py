@@ -71,12 +71,20 @@ def AnalyticalWinStayLoseShiftNew(coords):
     return coords, value
 
 
+def AnalyticalWinStayLoseShiftNewJames(coords):
+    x = coords[0]
+    y = coords[1]
+    value = (3 * x * (1 - x) + y * (1 - x) + 5 * y * (1 - y)) / (2 * y * (1 - x) + x * (1 - x) + y * (1 - y))
+
+    return coords, value
+
+
 def analytical_fingerprint(granularity, cores, name=None):
     coordinates = list(product(np.arange(0, 1, granularity), np.arange(0, 1, granularity)))
 
     p = Pool(cores)
 
-    scores = p.map(AnalyticalWinStayLoseShiftNew, coordinates)
+    scores = p.map(AnalyticalWinStayLoseShift, coordinates)
     scores.sort()
 
     xs = set([i[0][0] for i in scores])
@@ -88,4 +96,5 @@ def analytical_fingerprint(granularity, cores, name=None):
 
 
 # fingerprint(axl.WinStayLoseShift, axl.TitForTat, 0.01, 4, 50)
-analytical_fingerprint(0.01, 4, "analyticalWinStayLoseShiftNew.pdf")
+analytical_fingerprint(0.01, 4, "AnalyticalWinStayLoseShift.pdf")
+# print(expected_value(axl.WinStayLoseShift, axl.TitForTat, 500, (0.5, 0.5), repetitions=50, start_seed=0))
