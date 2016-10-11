@@ -7,15 +7,14 @@ import numpy as np
 
 import axelrod as axl
 from axelrod.strategy_transformers import MixedTransformer
-
-states = [('C', 'C'), ('C', 'D'), ('D', 'C'), ('D', 'D')]
-scores = {('C', 'C'): 3,
-          ('C', 'D'): 0,
-          ('D', 'C'): 5,
-          ('D', 'D'): 1}
+from axelrod.interaction_utils import compute_final_score_per_turn as cfspt
+from axelrod.interaction_utils import compute_normalised_state_distribution as cnsd
 
 
-def expected_value(fingerprint_strat, probe_strat, turns, coords, repetitions=50, start_seed=0):
+def expected_value(fingerprint_strat, probe_strat, turns, repetitions=50, warmup=0, start_seed=0, coords=None):
+    """
+    Calculate the expected score for a strategy and probe strategy for (x, y)
+    """
     strategies = [axl.Cooperator, axl.Defector]
     probe_strategy = MixedTransformer(coords, strategies)(probe_strat)
     players = (fingerprint_strat(), probe_strategy())
@@ -25,25 +24,38 @@ def expected_value(fingerprint_strat, probe_strat, turns, coords, repetitions=50
         axl.seed(seed)
         match = axl.Match(players, turns)  # Need to create a new match because of caching
         match.play()
-        scores.append(match.final_score_per_turn()[0])
+        interactions = match.result[warmup:]
+        scores.append(cfspt(interactions)[0])
+        distribution = cnsd(interactions)
 
-    # dist = dict(match.normalised_state_distribution())
-    # try:
-    #     score = sum([scores[state] * dist[state] for state in states])
-    # except:
-    #     score = 0
-
-    return coords, np.mean(scores)
+    return coords, np.mean(scores), distribution
 
 
-def fingerprint(fingerprint_strat, probe_strat, granularity, cores, turns=50, name=None):
+def AnalyticalWinStayLoseShift(coords):
+    """
+    The analytical function for Win-Stay-Lose-Shift (Pavlov) being probed by
+    Tit-For-Tat
+    """
+    x = coords[0]
+    y = coords[1]
+    numerator = 3 * x * (x - 1) + y * (x - 1) + 5 * y * (y - 1)
+    denominator = (2 * y * (x - 1) + x * (x - 1) + y * (y - 1))
+    value = numerator / denominator
+    return coords, value
+
+
+def fingerprint(fingerprint_strat, probe_strat, granularity, cores,
+                turns=50, name=None, repetitions=50, warmup=0, start_seed=0):
+    """
+    Produces a fingerprint plot for a strategy and probe strategy
+    """
     if name is None:
         name = fingerprint_strat.name + ".pdf"
 
     coordinates = list(product(np.arange(0, 1, granularity), np.arange(0, 1, granularity)))
     p = Pool(cores)
 
-    func = partial(expected_value, fingerprint_strat, probe_strat, turns)
+    func = partial(expected_value, fingerprint_strat, probe_strat, turns, repetitions, warmup, start_seed)
     scores = p.map(func, coordinates)
     scores.sort()
 
@@ -53,30 +65,6 @@ def fingerprint(fingerprint_strat, probe_strat, granularity, cores, turns=50, na
     clean_data = np.array(values).reshape(len(xs), len(ys))
     sns.heatmap(clean_data, xticklabels=False, yticklabels=False)
     plt.savefig(name)
-
-
-def AnalyticalWinStayLoseShift(coords):
-    x = coords[0]
-    y = coords[1]
-    value = ((3 * x * (x - 1)) + (y * (x - 1) ** 2) + (5 * y * (y - 1))) / ((2 * y * (x - 1)) + (x * (x - 1)) + (y * (y - 1)))
-
-    return coords, value
-
-
-def AnalyticalWinStayLoseShiftNew(coords):
-    x = coords[0]
-    y = coords[1]
-    value = 3 + 5 * ((y ** 2 - y) / (x ** 2 - x)) + (y / x)
-
-    return coords, value
-
-
-def AnalyticalWinStayLoseShiftNewJames(coords):
-    x = coords[0]
-    y = coords[1]
-    value = (3 * x * (1 - x) + y * (1 - x) + 5 * y * (1 - y)) / (2 * y * (1 - x) + x * (1 - x) + y * (1 - y))
-
-    return coords, value
 
 
 def analytical_fingerprint(granularity, cores, name=None):
@@ -95,6 +83,8 @@ def analytical_fingerprint(granularity, cores, name=None):
     plt.savefig(name)
 
 
-# fingerprint(axl.WinStayLoseShift, axl.TitForTat, 0.01, 4, 50)
-analytical_fingerprint(0.01, 4, "AnalyticalWinStayLoseShift.pdf")
+fingerprint(axl.WinStayLoseShift, axl.TitForTat, granularity=0.01, cores=4, turns=50,
+            repetitions=10, warmup=0)
+
+# analytical_fingerprint(0.01, 4, "AnalyticalWinStayLoseShift.pdf")
 # print(expected_value(axl.WinStayLoseShift, axl.TitForTat, 500, (0.5, 0.5), repetitions=50, start_seed=0))
