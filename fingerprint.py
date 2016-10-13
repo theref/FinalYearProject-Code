@@ -12,6 +12,8 @@ from axelrod.strategy_transformers import MixedTransformer
 from axelrod.interaction_utils import compute_final_score_per_turn as cfspt
 from axelrod.interaction_utils import compute_normalised_state_distribution as cnsd
 
+states = [('C', 'C'), ('C', 'D'), ('D', 'C'), ('D', 'D')]
+
 
 def expected_value(fingerprint_strat, probe_strat, turns, repetitions=50,
                    warmup=0, start_seed=0, coords=None):
@@ -34,8 +36,8 @@ def expected_value(fingerprint_strat, probe_strat, turns, repetitions=50,
         scores.append(cfspt(interactions)[0])  # compute_final_score_per_turn
         match_distribution = cnsd(interactions)  # compute_normalised_state_distribution
 
-        for key, value in match_distribution.items():
-            distribution[key] += value
+        for st in states:
+            distribution[st] += match_distribution[st]
 
     factor = 1.0 / sum(distribution.values())
     for k in distribution:  # normalize the new dictionary
@@ -122,20 +124,39 @@ def state_distribution_comparison(fingerprint_strat, probe_strat, granularity, c
 
         new_dict = defaultdict(tuple)
         for state, value in sim_dist.items():
-            new_dict[state] = (round(value, ndigits=3), round(ana_dist[state], ndigits=3))
+            new_dict[state] = (float("%.2f" % value), float("%.2f" % ana_dist[state]))
 
         final_results.append((coordinates, dict(new_dict)))
 
-    xs = set([i[0][0] for i in final_results])
-    ys = set([i[0][1] for i in final_results])
-    values = np.array([i[1] for i in final_results])
-    clean_data = np.array(values).reshape(len(xs), len(ys))
+    xs = sorted(list(set([i[0][0] for i in final_results])))
 
-    table = " & ".join(str(e) for e in xs) + "\n"
-    for i, row in enumerate(clean_data):
-        table += "{} & ".format(list(xs)[i])
-        table += " & ".join(map(str, row))
-        table += "\n"
+
+
+    table = "& "
+    table += " & ".join(str(e) for e in xs) + " \\\ \n"
+
+    for coord1 in xs:
+        table += "\hline \n"
+        table += "{0:.1f}".format(coord1)
+        for st in states:
+            for coord2 in xs:
+                table += " & "
+                table += "({0})".format(", ".join(str(i) for i in st))
+                table += ": "
+                sim_val = [dict(element[2])[st] for element in sim_results if element[0] == (coord1, coord2)]
+                ana_val = [element[1][st] for element in analytical_dist if element[0] == (coord1, coord2)]
+                table += "({0:.2f}, {1:.2f})".format(sim_val[0], ana_val[0])
+            table += " \\\ \n"
+
+    info = """%% fingerprint strat - {}
+              %% probe strat - {}
+              %% granularity - {}
+              %% cores - {}
+              %% turns - {}
+              %% repetitions - {}
+              %% warmup - {}
+              %% start seed - {}""".format(fingerprint_strat, probe_strat, granularity, cores,
+                                        turns, repetitions, warmup, start_seed)
 
     with open("test.txt", 'w') as outfile:
         outfile.write(table)
@@ -162,5 +183,5 @@ def analytical_fingerprint(granularity, cores, name=None):
 
 # analytical_fingerprint(0.01, 4, "AnalyticalWinStayLoseShift.pdf")
 
-state_distribution_comparison(axl.WinStayLoseShift, axl.TitForTat, granularity=0.25, cores=4,
-                              turns=50, repetitions=10, warmup=0)
+state_distribution_comparison(axl.WinStayLoseShift, axl.TitForTat, granularity=0.2, cores=4,
+                              turns=100, repetitions=20, warmup=0)
