@@ -5,7 +5,6 @@ from multiprocessing import Pool
 from itertools import product
 import numpy as np
 from collections import defaultdict
-from tqdm import tqdm
 
 import axelrod as axl
 from axelrod.strategy_transformers import MixedTransformer
@@ -24,9 +23,9 @@ def expected_value(fingerprint_strat, probe_strat, turns, repetitions=50,
     probe_strategy = MixedTransformer(coords, strategies)(probe_strat)
     players = (fingerprint_strat(), probe_strategy())
     scores = []
-    distribution = defaultdict(int)  # If you access the defaultdict using a key, and the key is not
-                                     # already in the defaultdict, the key is automatically added 
-                                     # with a default value. (stackoverflow)
+    distribution = defaultdict(int)  # If you access the defaultdict using a key, and the key is
+                                    # not already in the defaultdict, the key is automatically added 
+                                    # with a default value. (stackoverflow)
 
     for seed in range(start_seed, start_seed + repetitions):  # Repeat to deal with expectation
         axl.seed(seed)
@@ -61,7 +60,7 @@ def AnalyticalWinStayLoseShift(coords):
     return coords, value
 
 
-def fingerprint(fingerprint_strat, probe_strat, granularity, cores,
+def fingerprint(fingerprint_strat, dual_strat, probe_strat, granularity, cores,
                 turns=50, name=None, repetitions=50, warmup=0, start_seed=0):
     """
     Produces a fingerprint plot for a strategy and probe strategy
@@ -71,10 +70,17 @@ def fingerprint(fingerprint_strat, probe_strat, granularity, cores,
 
     coordinates = list(product(np.arange(0, 1, granularity), np.arange(0, 1, granularity)))
     p = Pool(cores)
+    q = Pool(cores)
+    fingerprint_coords = [x for x in coordinates if sum(x) <= 1]
+    dual_coords = [x for x in coordinates if sum(x) > 1]
 
-    func = partial(expected_value, fingerprint_strat, probe_strat, turns,
-                   repetitions, warmup, start_seed)
-    scores = p.map(func, tqdm(coordinates))
+    fingerprint_func = partial(expected_value, fingerprint_strat, probe_strat, turns,
+                               repetitions, warmup, start_seed)
+    dual_func = (expected_value, dual_strat, probe_strat, turns,
+                               repetitions, warmup, start_seed)
+    fingerprint_scores = p.map(fingerprint_func, fingerprint_coords)
+    dual_scores = qi.map(dual_func, dual_coords)
+    scores = fingerprint_scores + dual_scores
     scores.sort()
 
     xs = set([i[0][0] for i in scores])
@@ -130,8 +136,6 @@ def state_distribution_comparison(fingerprint_strat, probe_strat, granularity, c
 
     xs = sorted(list(set([i[0][0] for i in final_results])))
 
-
-
     table = "& "
     table += " & ".join(str(e) for e in xs) + " \\\ \n"
 
@@ -158,7 +162,7 @@ def state_distribution_comparison(fingerprint_strat, probe_strat, granularity, c
               %% start seed - {}""".format(fingerprint_strat, probe_strat, granularity, cores,
                                         turns, repetitions, warmup, start_seed)
 
-    with open("test.txt", 'w') as outfile:
+    with open("test_warmup.txt", 'w') as outfile:
         outfile.write(table)
 
 
@@ -178,10 +182,10 @@ def analytical_fingerprint(granularity, cores, name=None):
     plt.savefig(name)
 
 
-# fingerprint(axl.WinStayLoseShift, axl.TitForTat, granularity=0.01, cores=4, turns=50,
-            # repetitions=10, warmup=0)
+fingerprint(axl.WinStayLoseShift, axl.MemoryOnePlayer((1, 0, 0, 1), axl.Actions.D), axl.TitForTat,
+            granularity=0.01, cores=4, turns=50, repetitions=10, warmup=0)
 
 # analytical_fingerprint(0.01, 4, "AnalyticalWinStayLoseShift.pdf")
 
-state_distribution_comparison(axl.WinStayLoseShift, axl.TitForTat, granularity=0.2, cores=4,
-                              turns=100, repetitions=20, warmup=0)
+# state_distribution_comparison(axl.WinStayLoseShift, axl.TitForTat, granularity=0.2, cores=4,
+                              # turns=200, repetitions=20, warmup=20)
