@@ -7,7 +7,7 @@ import numpy as np
 from collections import defaultdict
 
 import axelrod as axl
-from axelrod.strategy_transformers import MixedTransformer
+from axelrod.strategy_transformers import MixedTransformer, DualTransformer
 from axelrod.interaction_utils import compute_final_score_per_turn as cfspt
 from axelrod.interaction_utils import compute_normalised_state_distribution as cnsd
 
@@ -60,7 +60,7 @@ def AnalyticalWinStayLoseShift(coords):
     return coords, value
 
 
-def fingerprint(fingerprint_strat, dual_strat, probe_strat, granularity, cores,
+def fingerprint(fingerprint_strat, probe_strat, granularity, cores,
                 turns=50, name=None, repetitions=50, warmup=0, start_seed=0):
     """
     Produces a fingerprint plot for a strategy and probe strategy
@@ -70,16 +70,18 @@ def fingerprint(fingerprint_strat, dual_strat, probe_strat, granularity, cores,
 
     coordinates = list(product(np.arange(0, 1, granularity), np.arange(0, 1, granularity)))
     p = Pool(cores)
-    q = Pool(cores)
     fingerprint_coords = [x for x in coordinates if sum(x) <= 1]
-    dual_coords = [x for x in coordinates if sum(x) > 1]
+    fingerprint_func = partial(expected_value, fingerprint_strat, probe_strat, turns, repetitions,
+                               warmup, start_seed)
 
-    fingerprint_func = partial(expected_value, fingerprint_strat, probe_strat, turns,
-                               repetitions, warmup, start_seed)
-    dual_func = (expected_value, dual_strat, probe_strat, turns,
-                               repetitions, warmup, start_seed)
+    # q = Pool(cores)
+    dual_coords = [x for x in coordinates if sum(x) > 1]
+    dual_strat = DualTransformer(fingerprint_strat())(fingerprint_strat)
+    # dual_func = (expected_value, dual_strat, probe_strat, turns, repetitions, warmup, start_seed)
+    # dual_scores = p.map(dual_func, dual_coords)
+    dual_scores = [expected_value(dual_strat, probe_strat, turns, repetitions, warmup, start_seed,
+                                  xy) for xy in dual_coords]
     fingerprint_scores = p.map(fingerprint_func, fingerprint_coords)
-    dual_scores = qi.map(dual_func, dual_coords)
     scores = fingerprint_scores + dual_scores
     scores.sort()
 
@@ -111,12 +113,20 @@ def state_distribution_comparison(fingerprint_strat, probe_strat, granularity, c
                                   turns=50, repetitions=50, warmup=0, start_seed=0):
 
     coordinates = list(product(np.arange(0, 1, granularity), np.arange(0, 1, granularity)))
+    original_coords = [x for x in coordinates if sum(x) <= 1]
+    dual_coords = [x for x in coordinates if sum(x) > 1]
+
     p = Pool(cores)
 
     func = partial(expected_value, fingerprint_strat, probe_strat, turns,
                    repetitions, warmup, start_seed)
-    sim_results = p.map(func, tqdm(coordinates))
-    sim_results.sort()
+    sim_results = p.map(func, original_coords)
+    dual_strat = DualTransformer(fingerprint_strat())(fingerprint_strat)
+    dual_results = [expected_value(dual_strat, probe_strat, turns, repetitions, warmup, start_seed,
+                                   xy) for xy in dual_coords]
+
+    results = sim_results + dual_results
+    results.sort()
 
     q = Pool(cores)
     analytical_dist = q.map(analytical_distribution_wsls, coordinates)
@@ -124,8 +134,8 @@ def state_distribution_comparison(fingerprint_strat, probe_strat, granularity, c
 
     final_results = []
     for i, an in enumerate(analytical_dist):
-        coordinates = sim_results[i][0]
-        sim_dist = sim_results[i][2]
+        coordinates = results[i][0]
+        sim_dist = results[i][2]
         ana_dist = an[1]
 
         new_dict = defaultdict(tuple)
@@ -147,7 +157,7 @@ def state_distribution_comparison(fingerprint_strat, probe_strat, granularity, c
                 table += " & "
                 table += "({0})".format(", ".join(str(i) for i in st))
                 table += ": "
-                sim_val = [dict(element[2])[st] for element in sim_results if element[0] == (coord1, coord2)]
+                sim_val = [dict(element[2])[st] for element in results if element[0] == (coord1, coord2)]
                 ana_val = [element[1][st] for element in analytical_dist if element[0] == (coord1, coord2)]
                 table += "({0:.2f}, {1:.2f})".format(sim_val[0], ana_val[0])
             table += " \\\ \n"
@@ -162,7 +172,7 @@ def state_distribution_comparison(fingerprint_strat, probe_strat, granularity, c
               %% start seed - {}""".format(fingerprint_strat, probe_strat, granularity, cores,
                                         turns, repetitions, warmup, start_seed)
 
-    with open("test_warmup.txt", 'w') as outfile:
+    with open("comparison.txt", 'w') as outfile:
         outfile.write(table)
 
 
@@ -182,10 +192,71 @@ def analytical_fingerprint(granularity, cores, name=None):
     plt.savefig(name)
 
 
-fingerprint(axl.WinStayLoseShift, axl.MemoryOnePlayer((1, 0, 0, 1), axl.Actions.D), axl.TitForTat,
-            granularity=0.01, cores=4, turns=50, repetitions=10, warmup=0)
+def plot_sum_squares(fingerprint_strat, probe_strat, granularity, cores,
+                     turns=50, name=None, repetitions=50, start_seed=0):
+
+    warmup=0
+    coordinates = list(product(np.arange(0, 1, granularity), np.arange(0, 1, granularity)))
+    original_coords = [x for x in coordinates if sum(x) <= 1]
+    dual_coords = [x for x in coordinates if sum(x) > 1]
+
+    cc_errors = []
+    cd_errors = []
+    dc_errors = []
+    dd_errors = []
+
+    for t in range(1, turns):
+        p = Pool(cores)
+        func = partial(expected_value, fingerprint_strat, probe_strat, t,
+                       repetitions, warmup, start_seed)
+
+        sim_results = p.map(func, original_coords)
+        dual_strat = DualTransformer(fingerprint_strat())(fingerprint_strat)
+        dual_results = [expected_value(dual_strat, probe_strat, t, repetitions, warmup,
+                                       start_seed, xy) for xy in dual_coords]
+
+        results = sim_results + dual_results
+        results.sort()
+
+        q = Pool(cores)
+        analytical_dist = q.map(analytical_distribution_wsls, coordinates)
+        analytical_dist.sort()
+        cc_e = []
+        cd_e = []
+        dc_e = []
+        dd_e = []
+
+        for index, value in enumerate(results):
+            sim_dist = value[2]
+            ana_dist = analytical_dist[index][1]
+            errors = [(val - ana_dist[key])**2 for key, val in sim_dist.items()]
+            cc_e.append(errors[0])
+            cd_e.append(errors[1])
+            dc_e.append(errors[2])
+            dd_e.append(errors[3])
+
+        cc_errors.append(np.mean([x for x in cc_e if x > 0]))
+        cd_errors.append(np.mean([x for x in cd_e if x > 0]))
+        dc_errors.append(np.mean([x for x in dc_e if x > 0]))
+        dd_errors.append(np.mean([x for x in dd_e if x > 0]))
+
+    plt.plot(cc_errors, label='CC errors')
+    plt.plot(cd_errors, label='CD errors')
+    plt.plot(dc_errors, label='DC errors')
+    plt.plot(dd_errors, label='DD errors')
+    plt.ylim(0, 0.1)
+    plt.xlabel('Turns')
+    plt.ylabel('Sum Errors Squared')
+    plt.legend()
+    plt.savefig('sum_squares.pdf')
+
+# fingerprint(axl.WinStayLoseShift, axl.TitForTat,
+            # granularity=0.01, cores=4, turns=50, repetitions=10, warmup=0)
 
 # analytical_fingerprint(0.01, 4, "AnalyticalWinStayLoseShift.pdf")
 
 # state_distribution_comparison(axl.WinStayLoseShift, axl.TitForTat, granularity=0.2, cores=4,
-                              # turns=200, repetitions=20, warmup=20)
+                              # turns=200, repetitions=20, warmup=100)
+
+plot_sum_squares(axl.WinStayLoseShift, axl.TitForTat, granularity=0.01, cores=4,
+                 turns=150, repetitions=5)
