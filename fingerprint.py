@@ -47,7 +47,7 @@ def expected_value(fingerprint_strat, probe_strat, turns, repetitions=50,
     return coords, mean_score, distribution
 
 
-def get_coordinates():
+def get_coordinates(granularity):
     coordinates = list(product(np.arange(0, 1, granularity), np.arange(0, 1, granularity)))
     original_coords = [x for x in coordinates if sum(x) <= 1]
     dual_coords = [x for x in coordinates if sum(x) > 1]
@@ -58,13 +58,17 @@ def get_coordinates():
 def get_results(fingerprint_strat, probe_strat, granularity, cores,
                 turns=50, repetitions=10, warmup=0, start_seed=0):
 
-    dual_coords, original_coords = get_coordinates()
+    dual_coords, original_coords = get_coordinates(granularity)
     p = Pool(cores)
 
-    func = partial(expected_value, fingerprint_strat, probe_strat, turns,
-                   repetitions, warmup, start_seed)
+    func = partial(expected_value, fingerprint_strat, probe_strat, turns, repetitions, warmup,
+                   start_seed)
     sim_results = p.map(func, original_coords)
+    q = Pool(cores)
     dual_strat = DualTransformer(fingerprint_strat())(fingerprint_strat)
+    # dual_func = partial(expected_value, dual_strat, probe_strat, turns, repetitions, warmup,
+                        # start_seed)
+    # dual_results = q.map(dual_func, dual_coords)
     dual_results = [expected_value(dual_strat, probe_strat, turns, repetitions, warmup, start_seed,
                                    xy) for xy in dual_coords]
 
@@ -127,7 +131,7 @@ def state_distribution_comparison(fingerprint_strat, probe_strat, granularity, c
     results = get_results(fingerprint_strat, probe_strat, granularity, cores, turns, repetitions,
                           warmup, start_seed)
 
-    dual_coords, original_coords = get_coordinates()
+    dual_coords, original_coords = get_coordinates(granularity)
     coordinates = dual_coords + original_coords
     q = Pool(cores)
     analytical_dist = q.map(analytical_distribution_wsls, coordinates)
@@ -178,7 +182,7 @@ def state_distribution_comparison(fingerprint_strat, probe_strat, granularity, c
 
 
 def analytical_fingerprint(granularity, cores, name=None):
-    dual_coords, original_coords = get_coordinates()
+    dual_coords, original_coords = get_coordinates(granularity)
     coordinates = dual_coords + original_coords
 
     p = Pool(cores)
@@ -197,7 +201,12 @@ def analytical_fingerprint(granularity, cores, name=None):
 def plot_sum_squares(fingerprint_strat, probe_strat, granularity, cores,
                      turns=50, name=None, repetitions=50, start_seed=0):
 
-    dual_coords, original_coords = get_coordinates
+    if name is None:
+        plot_name = "sum_squares.pdf"
+    else:
+        plot_name = name
+
+    dual_coords, original_coords = get_coordinates(granularity)
     coordinates = dual_coords + original_coords
     warmup=0
 
@@ -207,8 +216,8 @@ def plot_sum_squares(fingerprint_strat, probe_strat, granularity, cores,
     dd_errors = []
 
     for t in range(1, turns):
-        results = get_results(fingerprint_strat, probe_strat, granularity, cores, turns,
-                              repetitions, warmup, start_seed)
+        results = get_results(fingerprint_strat, probe_strat, granularity, cores, t, repetitions,
+                              warmup, start_seed)
 
         q = Pool(cores)
         analytical_dist = q.map(analytical_distribution_wsls, coordinates)
@@ -236,11 +245,11 @@ def plot_sum_squares(fingerprint_strat, probe_strat, granularity, cores,
     plt.plot(cd_errors, label='CD errors')
     plt.plot(dc_errors, label='DC errors')
     plt.plot(dd_errors, label='DD errors')
-    plt.ylim(0, 0.1)
+    plt.ylim(0, 0.01)
     plt.xlabel('Turns')
-    plt.ylabel('Sum Errors Squared')
+    plt.ylabel('Mean Errors Squared')
     plt.legend()
-    plt.savefig('sum_squares.pdf')
+    plt.savefig(plot_name)
 
 # fingerprint(axl.WinStayLoseShift, axl.TitForTat,
             # granularity=0.01, cores=4, turns=50, repetitions=10, warmup=0)
@@ -250,5 +259,5 @@ def plot_sum_squares(fingerprint_strat, probe_strat, granularity, cores,
 # state_distribution_comparison(axl.WinStayLoseShift, axl.TitForTat, granularity=0.2, cores=4,
                               # turns=200, repetitions=20, warmup=100)
 
-plot_sum_squares(axl.WinStayLoseShift, axl.TitForTat, granularity=0.01, cores=4,
-                 turns=150, repetitions=5)
+plot_sum_squares(axl.WinStayLoseShift, axl.TitForTat, granularity=0.05, cores=4,
+                 turns=150, repetitions=5, name="large_errors_plot.pdf")
