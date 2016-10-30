@@ -7,7 +7,7 @@ import numpy as np
 from collections import defaultdict
 
 import axelrod as axl
-from axelrod.strategy_transformers import MixedTransformer, DualTransformer
+from axelrod.strategy_transformers import MixedTransformer, dual
 from axelrod.interaction_utils import compute_final_score_per_turn as cfspt
 from axelrod.interaction_utils import compute_normalised_state_distribution as cnsd
 
@@ -21,7 +21,7 @@ def expected_value(fingerprint_strat, probe_strat, turns, repetitions=50,
     """
     strategies = [axl.Cooperator, axl.Defector]
     probe_strategy = MixedTransformer(coords, strategies)(probe_strat)
-    players = (fingerprint_strat(), probe_strategy())
+    players = (fingerprint_strat, probe_strategy())
     scores = []
     distribution = defaultdict(int)  # If you access the defaultdict using a key, and the key is
                                     # not already in the defaultdict, the key is automatically added
@@ -61,16 +61,14 @@ def get_results(fingerprint_strat, probe_strat, granularity, cores,
     dual_coords, original_coords = get_coordinates(granularity)
     p = Pool(cores)
 
-    func = partial(expected_value, fingerprint_strat, probe_strat, turns, repetitions, warmup,
+    func = partial(expected_value, fingerprint_strat(), probe_strat, turns, repetitions, warmup,
                    start_seed)
     sim_results = p.map(func, original_coords)
     q = Pool(cores)
-    dual_strat = DualTransformer(fingerprint_strat())(fingerprint_strat)
-    # dual_func = partial(expected_value, dual_strat, probe_strat, turns, repetitions, warmup,
-                        # start_seed)
-    # dual_results = q.map(dual_func, dual_coords)
-    dual_results = [expected_value(dual_strat, probe_strat, turns, repetitions, warmup, start_seed,
-                                   xy) for xy in dual_coords]
+    dual_strat = dual(fingerprint_strat())
+    dual_func = partial(expected_value, dual_strat, probe_strat, turns, repetitions, warmup,
+                        start_seed)
+    dual_results = q.map(dual_func, dual_coords)
 
     results = sim_results + dual_results
     results.sort()
@@ -251,13 +249,13 @@ def plot_sum_squares(fingerprint_strat, probe_strat, granularity, cores,
     plt.legend()
     plt.savefig(plot_name)
 
-# fingerprint(axl.WinStayLoseShift, axl.TitForTat,
-            # granularity=0.01, cores=4, turns=50, repetitions=10, warmup=0)
+fingerprint(axl.WinStayLoseShift, axl.TitForTat, name="test.pdf",
+            granularity=0.05, cores=4, turns=10, repetitions=1, warmup=0)
 
 # analytical_fingerprint(0.01, 4, "AnalyticalWinStayLoseShift.pdf")
 
 # state_distribution_comparison(axl.WinStayLoseShift, axl.TitForTat, granularity=0.2, cores=4,
                               # turns=200, repetitions=20, warmup=100)
 
-plot_sum_squares(axl.WinStayLoseShift, axl.TitForTat, granularity=0.05, cores=4,
-                 turns=150, repetitions=5, name="large_errors_plot.pdf")
+# plot_sum_squares(axl.WinStayLoseShift, axl.TitForTat, granularity=0.05, cores=4,
+                 # turns=150, repetitions=5, name="large_errors_plot.pdf")
