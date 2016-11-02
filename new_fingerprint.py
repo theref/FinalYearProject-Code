@@ -89,18 +89,3 @@ class AshlockFingerprint(Fingerprint):
         self.data = self.generate_data(self.results, self.probe_players.keys())
         sns.heatmap(self.data)
         plt.show()
-
-
-
-# dual_probes = defaultdict()
-# strategies = [axl.Cooperator, axl.Defector]
-# probe_strat = axl.TitForTat
-# for coords in dual_coords:
-#     x, y = coords
-#     probe_strategy = MixedTransformer((1 - y, 1 - x), strategies)(probe_strat)
-#     dual_probes[coords] = probe_strategy
-
-# standard_probes = []
-# players = []
-# edges = []
-# spatial_tournament = axl.SpatialTournament(players, edges)
