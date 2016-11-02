@@ -1,6 +1,8 @@
 import axelrod as axl
 import numpy as np
 import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 from itertools import product
 from axelrod.strategy_transformers import JossAnnTransformer, DualTransformer
 from axelrod.interaction_utils import compute_final_score_per_turn as cfspt
@@ -50,25 +52,44 @@ class AshlockFingerprint(Fingerprint):
             edges.append(edge)
         return edges
 
-    def fingerprint(self, granularity):
+    def fingerprint(self, turns=50, repetitions=10, granularity=0.01, cores=None):
         self.probe_players = self.create_probes(self.probe, granularity)
         self.edges = self.create_edges(self.probe_players)
         original = self.strategy()
         dual = DualTransformer()(self.strategy)()
         probes = self.probe_players.values()
         tourn_players = [original, dual] + list(probes)
-        spatial_tourn = axl.SpatialTournament(tourn_players, turns=2,
-                                              repetitions=2, edges=self.edges)
-        self.results = spatial_tourn.play(keep_interactions=True)
+        spatial_tourn = axl.SpatialTournament(tourn_players, turns=turns,
+                                              repetitions=repetitions,
+                                              edges=self.edges)
+        print("Begin Spatial Tournament")
+        self.results = spatial_tourn.play(processes=cores,
+                                          keep_interactions=True)
+        print("Spatial Tournament Finished")
+
+    def generate_data(self, results, probe_coords):
+        edge_scores = {key: cfspt(value[0])[0] for key, value in
+                       results.interactions.items()}
+
+        coord_scores = OrderedDict.fromkeys(probe_coords)
+        for index, coord in enumerate(coord_scores.keys()):
+            if sum(coord) > 1:
+                edge = (1, index + 2)
+            else:
+                edge = (0, index + 2)
+            coord_scores[coord] = edge_scores[edge]
+
+        ser = pd.Series(list(coord_scores.values()),
+                        index=pd.MultiIndex.from_tuples(coord_scores.keys()))
+        df = ser.unstack().fillna(0)
+        df.shape
+        return df
 
     def plot(self):
-        # edge_scores = {key: cfspt(value[0]) for key, value in
-        #                self.results.interactions.items()}
+        self.data = self.generate_data(self.results, self.probe_players.keys())
+        sns.heatmap(self.data)
+        plt.show()
 
-        # ser = pd.Series(list(dict_sim_scores.values()),
-        #           index=pd.MultiIndex.from_tuples(dict_sim_scores.keys()))
-        # df = ser.unstack().fillna(0)
-        # df.shape
 
 
 # dual_probes = defaultdict()
