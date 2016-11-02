@@ -64,11 +64,15 @@ def get_results(fingerprint_strat, probe_strat, granularity, cores,
     func = partial(expected_value, fingerprint_strat(), probe_strat, turns, repetitions, warmup,
                    start_seed)
     sim_results = p.map(func, original_coords)
+    p.close()
+    p.join()
     q = Pool(cores)
     dual_strat = dual(fingerprint_strat())
     dual_func = partial(expected_value, dual_strat, probe_strat, turns, repetitions, warmup,
                         start_seed)
     dual_results = q.map(dual_func, dual_coords)
+    q.close()
+    q.join()
 
     results = sim_results + dual_results
     results.sort()
@@ -213,13 +217,13 @@ def plot_sum_squares(fingerprint_strat, probe_strat, granularity, cores,
     dc_errors = []
     dd_errors = []
 
+    q = Pool(cores)
+    analytical_dist = q.map(analytical_distribution_wsls, coordinates)
+    analytical_dist.sort()
     for t in range(1, turns):
         results = get_results(fingerprint_strat, probe_strat, granularity, cores, t, repetitions,
                               warmup, start_seed)
 
-        q = Pool(cores)
-        analytical_dist = q.map(analytical_distribution_wsls, coordinates)
-        analytical_dist.sort()
         cc_e = []
         cd_e = []
         dc_e = []
@@ -249,13 +253,13 @@ def plot_sum_squares(fingerprint_strat, probe_strat, granularity, cores,
     plt.legend()
     plt.savefig(plot_name)
 
-fingerprint(axl.WinStayLoseShift, axl.TitForTat, name="test.pdf",
-            granularity=0.05, cores=4, turns=10, repetitions=1, warmup=0)
+# fingerprint(axl.WinStayLoseShift, axl.TitForTat,
+#             granularity=0.01, cores=4, turns=50, repetitions=5, warmup=0)
 
 # analytical_fingerprint(0.01, 4, "AnalyticalWinStayLoseShift.pdf")
 
 # state_distribution_comparison(axl.WinStayLoseShift, axl.TitForTat, granularity=0.2, cores=4,
                               # turns=200, repetitions=20, warmup=100)
 
-# plot_sum_squares(axl.WinStayLoseShift, axl.TitForTat, granularity=0.05, cores=4,
-                 # turns=150, repetitions=5, name="large_errors_plot.pdf")
+plot_sum_squares(axl.WinStayLoseShift, axl.TitForTat, granularity=0.05, cores=4,
+                 turns=100, repetitions=5, name="large_errors_plot.pdf")
