@@ -52,8 +52,7 @@ class AshlockFingerprint(Fingerprint):
         coordinates = list(product(np.arange(0, 1, granularity),
                                    np.arange(0, 1, granularity)))
 
-        probe_coords = OrderedDict.fromkeys(coordinates)
-        return probe_coords
+        return OrderedDict.fromkeys(coordinates)
 
     def create_probes(self, probe, granularity):
         """Creates a set of probe strategies over a 1x1 grid.
@@ -112,10 +111,7 @@ class AshlockFingerprint(Fingerprint):
         for index, coord in enumerate(probe_dict.keys()):
             #  Add 2 to the index because we will have to allow for the Strategy
             #  and it's Dual
-            if sum(coord) > 1:
-                edge = (1, index + 2)
-            else:
-                edge = (0, index + 2)
+            edge = (1, index + 2) if sum(coord) > 1 else (0, index + 2)
             edges.append(edge)
         return edges
 
@@ -180,10 +176,7 @@ class AshlockFingerprint(Fingerprint):
 
         coord_scores = OrderedDict.fromkeys(probe_coords)
         for index, coord in enumerate(coord_scores.keys()):
-            if sum(coord) > 1:
-                edge = (1, index + 2)
-            else:
-                edge = (0, index + 2)
+            edge = (1, index + 2) if sum(coord) > 1 else (0, index + 2)
             coord_scores[coord] = edge_scores[edge]
 
         ser = pd.Series(list(coord_scores.values()),
