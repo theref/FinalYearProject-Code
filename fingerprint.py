@@ -98,13 +98,13 @@ def fingerprint(fingerprint_strat, probe_strat, granularity, cores,
     Produces a fingerprint plot for a strategy and probe strategy
     """
     if name is None:
-        name = fingerprint_strat.name + ".pdf"
+        name = f"{fingerprint_strat.name}.pdf"
 
     scores = get_results(fingerprint_strat, probe_strat, granularity, cores, turns, repetitions,
                          warmup, start_seed)
 
-    xs = set([i[0][0] for i in scores])
-    ys = set([i[0][1] for i in scores])
+    xs = {i[0][0] for i in scores}
+    ys = {i[0][1] for i in scores}
     values = np.array([i[1] for i in scores])
     clean_data = np.array(values).reshape(len(xs), len(ys))
     sns.heatmap(clean_data, xticklabels=False, yticklabels=False)
@@ -151,7 +151,7 @@ def state_distribution_comparison(fingerprint_strat, probe_strat, granularity, c
 
         final_results.append((coordinates, dict(new_dict)))
 
-    xs = sorted(list(set([i[0][0] for i in final_results])))
+    xs = sorted(list({i[0][0] for i in final_results}))
 
     table = "& "
     table += " & ".join(str(e) for e in xs) + " \\\ \n"
@@ -192,8 +192,8 @@ def analytical_fingerprint(granularity, cores, name=None):
     scores = p.map(AnalyticalWinStayLoseShift, coordinates)
     scores.sort()
 
-    xs = set([i[0][0] for i in scores])
-    ys = set([i[0][1] for i in scores])
+    xs = {i[0][0] for i in scores}
+    ys = {i[0][1] for i in scores}
     values = np.array([i[1] for i in scores])
     clean_data = np.array(values).reshape(len(xs), len(ys))
     sns.heatmap(clean_data, xticklabels=False, yticklabels=False)
@@ -203,11 +203,7 @@ def analytical_fingerprint(granularity, cores, name=None):
 def plot_sum_squares(fingerprint_strat, probe_strat, granularity, cores,
                      turns=50, name=None, repetitions=50, start_seed=0):
 
-    if name is None:
-        plot_name = "sum_squares.pdf"
-    else:
-        plot_name = name
-
+    plot_name = "sum_squares.pdf" if name is None else name
     dual_coords, original_coords = get_coordinates(granularity)
     coordinates = dual_coords + original_coords
     warmup=0
